@@ -35,14 +35,14 @@ const int Y_DOWN = 3;
 
 Field* getField() { return &game[x][y]; }
 
-int fieldValue() {
+int fieldValue(int x, int y) {
   int value = 0;
   for (int i = -1; i < 2; i++) {
     for (int j = -1; j < 2; j++) {
       if (i == 0 && j == 0) continue;
       int dX = x + i;
       int dY = y + j;
-      if (dX > 0 && dY > 0 && dX < MS_ROWS && dY < MS_COLS && game[dX][dY].isBomb)
+      if (dX >= 0 && dY >= 0 && dX < MS_ROWS && dY < MS_COLS && game[dX][dY].isBomb)
         value++;
     }
   }
@@ -56,7 +56,7 @@ void printFieldAt(int x, int y) {
     if (field->isBomb) {
       mvwprintw(field->window, 1, 1, "🚩");
     } else {
-      mvwprintw(field->window, 1, 2, "%d", fieldValue());
+      mvwprintw(field->window, 1, 2, "%d", fieldValue(x, y));
     }
   } else if (field->isFlagged) {
       mvwprintw(field->window, 1, 2, "⚑");
@@ -246,7 +246,7 @@ int main() {
   const char *messages[] = {
     "Welcome to Minesweeper",
     "",
-    "You can move the cursor with arrow keys or WASD",
+    "You can move the cursor with Arrow Keys, WASD or hjkl",
     "R/LeftClick to reveal",
     "F/RightClick to flag",
     "Delete to restart",
@@ -300,18 +300,22 @@ int main() {
     switch (c) {
     case KEY_UP:
     case 'w':
+    case 'k':
       moveFocus(X_UP);
       break;
     case KEY_DOWN:
     case 's':
+    case 'j':
       moveFocus(X_DOWN);
       break;
     case KEY_RIGHT:
     case 'd':
+    case 'l':
       moveFocus(Y_UP);
       break;
     case KEY_LEFT:
     case 'a':
+    case 'h':
       moveFocus(Y_DOWN);
       break;
     case 'f':
