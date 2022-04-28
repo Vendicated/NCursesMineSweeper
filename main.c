@@ -9,8 +9,13 @@
 #include <locale.h>
 
 #define MS_ROWS 10
-#define BOMB_COUNT 10
 #define MS_COLS 10
+#define BOMB_COUNT 15
+
+#define X_UP 0
+#define X_DOWN 1
+#define Y_UP 2
+#define Y_DOWN 4
 
 typedef struct {
   bool isBomb;
@@ -23,23 +28,21 @@ int rowCount, colCount;
 int rowMiddle, colMiddle;
 int x = 0, y = 0;
 bool isGameLost = false;
+
 WINDOW *gameLostWindow;
-
-
 Field game[MS_ROWS][MS_COLS];
 
-const int X_UP = 0;
-const int X_DOWN = 1;
-const int Y_UP = 2;
-const int Y_DOWN = 3;
 
-Field* getField() { return &game[x][y]; }
+Field* getField() { 
+  return &game[x][y];
+}
 
 int fieldValue(int x, int y) {
   int value = 0;
   for (int i = -1; i < 2; i++) {
     for (int j = -1; j < 2; j++) {
-      if (i == 0 && j == 0) continue;
+      if (i == 0 && j == 0)
+        continue;
       int dX = x + i;
       int dY = y + j;
       if (dX >= 0 && dY >= 0 && dX < MS_ROWS && dY < MS_COLS && game[dX][dY].isBomb)
@@ -69,7 +72,13 @@ void printField() {
   printFieldAt(x, y);
 }
 
-void highlight();
+void highlight() {
+  WINDOW *win = getField()->window;
+  wattron(win, A_BOLD | A_BLINK);
+  box(win, 1, 1);
+  wattroff(win, A_BOLD | A_BLINK);
+  printField();
+}
 
 void refreshAll() {
   for (int x = 0; x < MS_ROWS; x++) {
@@ -81,13 +90,6 @@ void refreshAll() {
   highlight();
 }
 
-void highlight() {
-  WINDOW *win = getField()->window;
-  wattron(win, A_BOLD | A_BLINK);
-  box(win, 1, 1);
-  wattroff(win, A_BOLD | A_BLINK);
-  printField();
-}
 
 void moveFocus(const int direction) {
   box(getField()->window, 0, 0);
@@ -110,8 +112,8 @@ void placeBombs() {
   srand(time(NULL));
 
   for (int i = 0; i < BOMB_COUNT; ) {
-    int x = rand() % MS_ROWS + 1;
-    int y = rand() % MS_COLS + 1;
+    int x = rand() % (MS_ROWS + 1);
+    int y = rand() % (MS_COLS + 1);
     Field *field = &game[x][y];
     if (!field->isBomb) {
       field->isBomb = true;
@@ -122,9 +124,9 @@ void placeBombs() {
 
 void resetBoard() {
   isGameLost = false;
-  for (int i = 0; i < MS_ROWS; i++) {
-    for (int j = 0; j < MS_COLS; j++) {
-      Field *field = &game[i][j];
+  for (int x = 0; x < MS_ROWS; x++) {
+    for (int y = 0; y < MS_COLS; y++) {
+      Field *field = &game[x][y];
       field->isBomb = false;
       field->isRevealed = false;
       field->isFlagged = false;
@@ -141,14 +143,14 @@ void createBoard() {
   int rowOffset = (rowCount - MS_ROWS * 3) / 2;
   int colOffset = (colCount - MS_COLS * 5) / 2;
 
-  for (int i = 0; i < MS_ROWS; i++) {
-    for (int j = 0; j < MS_COLS; j++) {
+  for (int x = 0; x < MS_ROWS; x++) {
+    for (int y = 0; y < MS_COLS; y++) {
       Field field;
       field.isBomb = false;
       field.isFlagged = false;
       field.isRevealed = false;
-      field.window = newwin(3, 5, rowOffset + i * 3, colOffset + j * 5);
-      game[i][j] = field;
+      field.window = newwin(3, 5, rowOffset + x * 3, colOffset + y * 5);
+      game[x][y] = field;
 
       box(field.window, 0, 0);
       wrefresh(field.window);
@@ -192,14 +194,19 @@ void handleFlag() {
     return;
 
   field->isFlagged = !field->isFlagged;
-  printField();
+  if (!field->isFlagged) {
+    werase(field->window);
+    highlight();
+  } else {
+    printField();
+  }
 }
 
 
 void cleanup() {
-  for (int i = 0; i < MS_ROWS; i++) {
-    for (int j = 0; j < MS_COLS; j++) {
-      delwin(game[i][j].window);
+  for (int x = 0; x < MS_ROWS; x++) {
+    for (int y = 0; y < MS_COLS; y++) {
+      delwin(game[x][y].window);
     }
   }
   if (gameLostWindow)
@@ -222,6 +229,11 @@ void segfaultHandler(int signal) {
 #endif
 
 int main() {
+  if (BOMB_COUNT > MS_COLS * MS_ROWS) {
+    fprintf(stderr, "%d bombs specified, but there are only %d fields", BOMB_COUNT, MS_COLS * MS_ROWS);
+    exit(1);
+  }
+
   // Catch le funny signal
   signal(SIGINT, cleanup);
 
@@ -279,20 +291,18 @@ int main() {
     int c = getch();
 
     if (gameLostWindow) {
-      if (c == '\n') {
+      if (c == '\n' || c == KEY_BACKSPACE) {
         werase(gameLostWindow);
         wrefresh(gameLostWindow);
         delwin(gameLostWindow);
         gameLostWindow = NULL;
+
         refresh();
-        refreshAll();
-      } else if (c == KEY_BACKSPACE) {
-        werase(gameLostWindow);
-        wrefresh(gameLostWindow);
-        delwin(gameLostWindow);
-        refresh();
-        gameLostWindow = NULL;
-        resetBoard();
+        if (c == '\n') {
+          refreshAll();
+        } else {
+          resetBoard();
+        }
       }
       continue;
     }
@@ -338,10 +348,8 @@ int main() {
       break;
     case 'q':
       cleanup();
-      exit(0);
     }
   }
-
 
   cleanup();
 }
